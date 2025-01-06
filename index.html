@@ -282,7 +282,7 @@
                 let holidayCluster = false;
 
                 // Check surrounding days with wider range (-4 to +4 days)
-                for (let offset = -10; offset <= 10; offset++) {
+                for (let offset = -4; offset <= 4; offset++) {
                     const checkDate = new Date(currentDate);
                     checkDate.setDate(checkDate.getDate() + offset);
 
