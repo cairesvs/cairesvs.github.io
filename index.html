@@ -600,7 +600,7 @@
     document.getElementById('shareVacationButton').addEventListener('click', () => {
         const periods = calculateVacationPeriods();
         const shareText = periods.map(period => {
-            return `${formatDate(period.start)} - ${formatDate(period.end)} (${period.vacationDays} days)`;
+            return `${formatDate(period.start)} - ${formatDate(period.end)} (Used vacation ${period.vacationDays} days for ${period.totalDays} days off)`;
         }).join('\n');
         console.log(shareText);
         navigator.clipboard.writeText(shareText);
