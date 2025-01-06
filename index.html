@@ -108,6 +108,11 @@
     <!-- Period List Container -->
     <div id="periodList" class="space-y-4"></div>
 
+    <!-- Share Button -->
+    <div class="text-center mt-4">
+        <button class="btn btn-primary" id="shareVacationButton">
+            Share your vacation
+        </button>
     <!-- Footer -->
     <div class="mt-8 text-sm text-base-content/70 text-center">
         Efficiency shows how many total days off you get for each vacation day used. Higher is better.
@@ -591,6 +596,16 @@
     });
 
     document.getElementById('maxDays').addEventListener('change', updateView);
+
+    document.getElementById('shareVacationButton').addEventListener('click', () => {
+        const periods = calculateVacationPeriods();
+        const shareText = periods.map(period => {
+            return `${formatDate(period.start)} - ${formatDate(period.end)} (${period.vacationDays} days)`;
+        }).join('\n');
+        console.log(shareText);
+        navigator.clipboard.writeText(shareText);
+        alert('Vacation periods copied to clipboard!');
+    });
 
     // Initial setup
     updateCityDropdown();
