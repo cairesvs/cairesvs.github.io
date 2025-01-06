@@ -64,7 +64,12 @@
                         <span class="label-text-alt">
                                 <div class="tooltip"
                                      data-tip="Longest: Maximize continuous days off. Optimal: Best ratio of vacation days to total days off.">
-                                    ℹ️
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                         stroke-width="1.5" stroke="currentColor"
+                                         class="size-6">
+                                      <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"/>
+                                    </svg>
                                 </div>
                             </span>
                     </label>
@@ -115,9 +120,11 @@
         DE: {
             2025: [
                 {date: "2025-01-01", name: "New Year's Day"},
+                {date: "2025-03-08", name: "International Women's Day"},
                 {date: "2025-04-18", name: " Good Friday"},
                 {date: "2025-04-21", name: " Easter Monday"},
                 {date: "2025-05-01", name: " Labour Day"},
+                {date: "2025-05-08", name: " 80th anniversary of the liberation from National Socialist"},
                 {date: "2025-05-29", name: " Ascension Day"},
                 {date: "2025-06-09", name: " Whit Monday"},
                 {date: "2025-10-03", name: " Corpus Christ"},
@@ -270,9 +277,23 @@
         const startDate = new Date(year, 0, 1);
         const endDate = new Date(year, 11, 31);
 
+        // Helper function to create a date copy
+        const copyDate = (date) => new Date(date.getTime());
+
+        // Helper function to get all dates between start and end
+        const getAllDatesBetween = (start, end) => {
+            const dates = [];
+            let current = copyDate(start);
+            while (current <= end) {
+                dates.push(copyDate(current));
+                current.setDate(current.getDate() + 1);
+            }
+            return dates;
+        };
+
         // Create array of workdays with enhanced scoring
         const workdays = [];
-        let currentDate = new Date(startDate);
+        let currentDate = copyDate(startDate);
 
         while (currentDate <= endDate) {
             if (!isWeekend(currentDate) && !isPublicHoliday(currentDate, holidays)) {
@@ -281,7 +302,7 @@
                 let holidayBridge = false;
                 let holidayCluster = false;
 
-                // Check surrounding days with wider range (-4 to +4 days)
+                // Check surrounding days
                 for (let offset = -4; offset <= 4; offset++) {
                     const checkDate = new Date(currentDate);
                     checkDate.setDate(checkDate.getDate() + offset);
@@ -289,7 +310,6 @@
                     if (isWeekend(checkDate) || isPublicHoliday(checkDate, holidays)) {
                         freeDaysAround++;
 
-                        // Higher score for holidays than weekends
                         if (isPublicHoliday(checkDate, holidays)) {
                             score += 0.75;
 
@@ -328,7 +348,7 @@
                 if (freeDaysAround >= 4) score *= 1.2;
 
                 workdays.push({
-                    date: new Date(currentDate),
+                    date: copyDate(currentDate),
                     score: score,
                     freeDaysAround,
                     holidayBridge,
@@ -341,44 +361,49 @@
         // Sort by score and select best days
         workdays.sort((a, b) => b.score - a.score);
 
-        // Group days into periods
-        const periods = [];
-        let currentPeriod = null;
+        // Select the best-scoring days up to maxVacationDays
         const selectedDays = workdays.slice(0, maxVacationDays);
-
         selectedDays.sort((a, b) => a.date - b.date);
 
-        selectedDays.forEach(day => {
+        // Group into periods with proper date tracking
+        const periods = [];
+        let currentPeriod = null;
+
+        selectedDays.forEach((day, index) => {
             if (!currentPeriod) {
                 currentPeriod = {
-                    start: day.date,
-                    end: day.date,
-                    dates: [day.date],
+                    start: copyDate(day.date),
+                    end: copyDate(day.date),
+                    dates: [copyDate(day.date)],
                     vacationDays: 1
                 };
             } else {
-                const daysBetween = (day.date - currentPeriod.dates[currentPeriod.dates.length - 1])
-                    / (1000 * 60 * 60 * 24);
+                const lastDate = currentPeriod.dates[currentPeriod.dates.length - 1];
+                const daysBetween = Math.round((day.date - lastDate) / (1000 * 60 * 60 * 24));
 
-                const shouldGroup = daysBetween <= 4 || (daysBetween <= 6 && day.holidayCluster);
+                if (daysBetween <= 4) {
+                    // Add any workdays between last date and current date
+                    let checkDate = copyDate(lastDate);
+                    checkDate.setDate(checkDate.getDate() + 1);
 
-                if (shouldGroup) {
-                    currentPeriod.dates.push(day.date);
-                    currentPeriod.end = day.date;
+                    while (checkDate < day.date) {
+                        if (!isWeekend(checkDate) && !isPublicHoliday(checkDate, holidays)) {
+                            currentPeriod.dates.push(copyDate(checkDate));
+                            currentPeriod.vacationDays++;
+                        }
+                        checkDate.setDate(checkDate.getDate() + 1);
+                    }
+
+                    currentPeriod.dates.push(copyDate(day.date));
+                    currentPeriod.end = copyDate(day.date);
                     currentPeriod.vacationDays++;
                 } else {
-                    // Calculate stats for completed period
-                    let totalDays = 0;
-                    let freeDays = 0;
-                    let iterDate = new Date(currentPeriod.start);
-
-                    while (iterDate <= currentPeriod.end) {
-                        totalDays++;
-                        if (isWeekend(iterDate) || isPublicHoliday(iterDate, holidays)) {
-                            freeDays++;
-                        }
-                        iterDate.setDate(iterDate.getDate() + 1);
-                    }
+                    // Calculate stats for current period
+                    const allDatesInPeriod = getAllDatesBetween(currentPeriod.start, currentPeriod.end);
+                    let totalDays = allDatesInPeriod.length;
+                    let freeDays = allDatesInPeriod.filter(d =>
+                        isWeekend(d) || isPublicHoliday(d, holidays)
+                    ).length;
 
                     periods.push({
                         start: currentPeriod.start,
@@ -392,9 +417,9 @@
 
                     // Start new period
                     currentPeriod = {
-                        start: day.date,
-                        end: day.date,
-                        dates: [day.date],
+                        start: copyDate(day.date),
+                        end: copyDate(day.date),
+                        dates: [copyDate(day.date)],
                         vacationDays: 1
                     };
                 }
@@ -403,22 +428,16 @@
 
         // Handle last period
         if (currentPeriod) {
-            let totalDays = 0;
-            let freeDays = 0;
-            let iterDate = new Date(currentPeriod.start);
-
-            while (iterDate <= currentPeriod.end) {
-                totalDays++;
-                if (isWeekend(iterDate) || isPublicHoliday(iterDate, holidays)) {
-                    freeDays++;
-                }
-                iterDate.setDate(iterDate.getDate() + 1);
-            }
+            const allDatesInPeriod = getAllDatesBetween(currentPeriod.start, currentPeriod.end);
+            let totalDays = allDatesInPeriod.length;
+            let freeDays = allDatesInPeriod.filter(d =>
+                isWeekend(d) || isPublicHoliday(d, holidays)
+            ).length;
 
             periods.push({
                 start: currentPeriod.start,
                 end: currentPeriod.end,
-                dates: currentPeriod.dates,
+                dates: currentPeriod.dates.sort((a, b) => a - b), // Ensure dates are sorted
                 vacationDays: currentPeriod.vacationDays,
                 totalDays: totalDays,
                 freeDays: freeDays,
@@ -426,8 +445,7 @@
             });
         }
 
-        // Return sorted periods in the original format
-        return periods
+        return periods;
     };
 
     // Helper function to select non-overlapping periods
@@ -472,10 +490,10 @@
     // Update event listeners
     document.getElementById('strategy').addEventListener('change', updateView);
 
-    let selectedPeriodIndex = null;
+    let selectedPeriodIndexes = [];
 
     function renderPeriod(period, index) {
-        const isSelected = index === selectedPeriodIndex;
+        const isSelected = selectedPeriodIndexes.includes(index);
         return `
                 <div class="card bg-base-100 shadow-lg hover:shadow-xl transition-shadow cursor-pointer ${isSelected ? 'border-2 border-primary' : ''}"
                      data-index="${index}">
@@ -545,7 +563,11 @@
         periodList.querySelectorAll('.card').forEach(card => {
             card.addEventListener('click', () => {
                 const index = parseInt(card.dataset.index);
-                selectedPeriodIndex = selectedPeriodIndex === index ? null : index;
+                if (selectedPeriodIndexes.includes(index)) {
+                    selectedPeriodIndexes = selectedPeriodIndexes.filter(i => i !== index);
+                } else {
+                    selectedPeriodIndexes.push(index);
+                }
                 updateView();
             });
         });
